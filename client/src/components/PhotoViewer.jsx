@@ -104,7 +104,7 @@ const PhotoViewer = ({ photos, initialIndex, onClose, onPhotoDeleted }) => {
 
   const handleAddComment = async (e) => {
     e.preventDefault();
-    if (!user || !user.approved || !newComment.trim()) return;
+    if (!user || !newComment.trim()) return;
 
     try {
       const response = await api.post(`/comments/photo/${photo._id}`, {
