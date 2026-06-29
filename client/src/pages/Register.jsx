@@ -1,10 +1,9 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { Camera, User, Lock, AlertCircle, ArrowRight, Eye, EyeOff } from "lucide-react";
+import api from "../services/api";
+import { Camera, User, Lock, AlertCircle, ArrowRight, Eye, EyeOff, CheckCircle } from "lucide-react";
 
 const Register = () => {
-  const { register } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -13,6 +12,7 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,14 +29,25 @@ const Register = () => {
     setError("");
     setLoading(true);
     try {
-      await register(name.trim(), password);
-      navigate("/");
+      // Register account directly against the database API
+      await api.post("/auth/register", {
+        name: name.trim(),
+        password,
+      });
+      
+      // Toggle registration success modal
+      setRegistered(true);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Registration failed. Try again.");
+      setError(err.response?.data?.message || "Registration failed. Try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoToLogin = () => {
+    setRegistered(false);
+    navigate("/login");
   };
 
   return (
@@ -55,7 +66,7 @@ const Register = () => {
           <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
             Create Account
           </h2>
-          <p className="text-xs text-slate-400">Join your private family memories timeline</p>
+          <p className="text-xs text-slate-400">Register in your secure family timeline</p>
         </div>
 
         {/* Error Alert */}
@@ -153,6 +164,32 @@ const Register = () => {
           </Link>
         </p>
       </div>
+
+      {/* Success Modal Overlay */}
+      {registered && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md glass-panel p-8 rounded-3xl shadow-2xl text-center space-y-5 relative animate-fade-in border border-white/15">
+            {/* Glowing lights for success modal */}
+            <div className="absolute -top-32 -left-32 w-64 h-64 bg-indigo-500/15 rounded-full blur-[80px] pointer-events-none"></div>
+
+            <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto drop-shadow-[0_0_10px_rgba(52,211,153,0.3)] animate-pulse" />
+            
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-slate-100">Successfully Registered!</h3>
+              <p className="text-xs text-slate-400 leading-relaxed px-4">
+                Welcome, <span className="text-indigo-400 font-bold">{name}</span>! Your profile has been created successfully. You can now sign in to start uploading and liking shared memory photos.
+              </p>
+            </div>
+
+            <button
+              onClick={handleGoToLogin}
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+            >
+              Continue to Sign In
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

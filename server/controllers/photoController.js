@@ -40,12 +40,12 @@ exports.uploadPhotos = async (req, res) => {
 
     const uploadedPhotos = [];
 
-    for (const base64Image of images) {
+    for (const imageUrl of images) {
       const photo = new Photo({
         albumId: targetAlbumId,
         ownerId: req.user._id,
-        imageURL: base64Image,
-        thumbnail: base64Image,
+        imageURL: imageUrl,
+        thumbnail: imageUrl,
         caption: caption || "Feed Post",
         location: location || "",
         dateTaken: dateTaken ? new Date(dateTaken) : new Date(),

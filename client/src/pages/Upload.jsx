@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import { storage } from "../services/firebase";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { UploadCloud, Folder, MapPin, Calendar, Globe, Users, Lock, X, AlertCircle } from "lucide-react";
 
 const Upload = () => {
@@ -84,13 +86,33 @@ const Upload = () => {
     setFiles(files.filter((_, i) => i !== index));
   };
 
-  // Helper to convert file to base64 string
-  const convertToBase64 = (file) => {
+  // Helper to upload a single file to Firebase Storage with progress tracking
+  const uploadToFirebase = (file, index, total) => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
+      const storageRef = ref(storage, `photos/${Date.now()}_${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const fileProgress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          // Calculate overall progress across multiple files
+          const overallProgress = Math.round(((index + fileProgress / 100) / total) * 100);
+          setProgress(overallProgress);
+        },
+        (error) => {
+          console.error("Firebase Storage Upload Error:", error);
+          reject(error);
+        },
+        async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(downloadURL);
+          } catch (err) {
+            reject(err);
+          }
+        }
+      );
     });
   };
 
@@ -102,25 +124,25 @@ const Upload = () => {
 
     setError("");
     setUploading(true);
-    setProgress(15);
+    setProgress(0);
 
     try {
-      // Convert all files to base64 strings
-      setProgress(40);
-      const base64Images = await Promise.all(
-        files.map((file) => convertToBase64(file))
-      );
+      const downloadURLs = [];
+      
+      // Upload each file sequentially to track progress accurately
+      for (let i = 0; i < files.length; i++) {
+        const url = await uploadToFirebase(files[i], i, files.length);
+        downloadURLs.push(url);
+      }
 
-      setProgress(60);
       const payload = {
         caption,
         location,
         dateTaken,
         privacy,
-        images: base64Images,
+        images: downloadURLs, // Send the Firebase storage download URLs!
       };
 
-      // If an album is selected, append it
       if (selectedAlbumId) {
         payload.albumId = selectedAlbumId;
       }
@@ -133,7 +155,7 @@ const Upload = () => {
       }, 500);
     } catch (err) {
       console.error("Upload error:", err);
-      setError(err.response?.data?.message || "Failed to upload photos. The image files may be too large.");
+      setError(err.message || "Failed to upload photos to Firebase Storage. Please check storage bucket configurations.");
       setUploading(false);
     }
   };
@@ -144,15 +166,15 @@ const Upload = () => {
       <div>
         <h1 className="text-3xl font-extrabold text-slate-100 flex items-center gap-2">
           <UploadCloud className="w-8 h-8 text-indigo-400" />
-          <span>Upload Memories</span>
+          <span>Upload to Firebase</span>
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Post photos to your Instagram Feed or specific albums, set location tags, and write captions.
+          Post photos directly to Google Firebase Cloud Storage, linked in your Instagram feed.
         </p>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm font-semibold">
+        <div className="flex items-center gap-2 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm font-semibold animate-shake">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -206,7 +228,7 @@ const Upload = () => {
               <UploadCloud className="w-8 h-8 text-glow" />
             </div>
             <h4 className="text-base font-bold text-slate-200">Drag & drop your photos here</h4>
-            <p className="text-xs text-slate-500">Supports standard image files. Images are processed directly for database storage.</p>
+            <p className="text-xs text-slate-500">Images will be hosted securely on your Firebase cloud bucket.</p>
             <button
               type="button"
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl"
@@ -360,12 +382,12 @@ const Upload = () => {
         {uploading && (
           <div className="space-y-1.5">
             <div className="flex justify-between items-center text-xs text-slate-400">
-              <span>Uploading posts...</span>
+              <span>Uploading to Firebase Storage...</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/5">
               <div
-                className="bg-indigo-600 h-full rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-indigo-500 to-pink-500 h-full rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
