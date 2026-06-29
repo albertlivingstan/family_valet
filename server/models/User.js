@@ -1,21 +1,20 @@
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
-  firebaseUid: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true,
-  },
   name: {
     type: String,
     required: true,
+    unique: true,
+    trim: true,
+    index: true,
   },
   email: {
     type: String,
+    trim: true,
+  },
+  password: {
+    type: String,
     required: true,
-    unique: true,
-    index: true,
   },
   profileImage: {
     type: String,
@@ -28,7 +27,7 @@ const UserSchema = new mongoose.Schema({
   },
   approved: {
     type: Boolean,
-    default: false,
+    default: true, // Auto-approved for frictionless Instagram-style experience
   },
   joinedDate: {
     type: Date,

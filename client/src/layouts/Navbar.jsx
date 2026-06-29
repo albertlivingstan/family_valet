@@ -47,7 +47,7 @@ const Navbar = () => {
               <span>Memories</span>
             </Link>
 
-            {user && user.approved && (
+            {user && (
               <>
                 <Link to="/dashboard" className={navLinkClass("/dashboard")}>
                   <User className="w-4 h-4" />
@@ -154,7 +154,7 @@ const Navbar = () => {
             <span>Memories</span>
           </Link>
 
-          {user && user.approved && (
+          {user && (
             <>
               <Link
                 to="/dashboard"

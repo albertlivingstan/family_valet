@@ -33,7 +33,7 @@ const PhotoViewer = ({ photos, initialIndex, onClose, onPhotoDeleted }) => {
 
   const getFullImageUrl = (url) => {
     if (!url) return "";
-    if (url.startsWith("http")) return url;
+    if (url.startsWith("http") || url.startsWith("data:")) return url;
     return `${api.defaults.baseURL.replace("/api", "")}${url}`;
   };
 
@@ -92,7 +92,7 @@ const PhotoViewer = ({ photos, initialIndex, onClose, onPhotoDeleted }) => {
   };
 
   const handleToggleLike = async () => {
-    if (!user || !user.approved) return;
+    if (!user) return;
     try {
       const response = await api.post(`/likes/photo/${photo._id}`);
       setHasLiked(response.data.liked);
@@ -144,6 +144,16 @@ const PhotoViewer = ({ photos, initialIndex, onClose, onPhotoDeleted }) => {
   const handleDownload = async () => {
     try {
       const imgUrl = getFullImageUrl(photo.imageURL);
+      if (imgUrl.startsWith("data:")) {
+        const link = document.createElement("a");
+        link.href = imgUrl;
+        link.download = photo.caption || "familyvault-photo.jpg";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      
       const response = await fetch(imgUrl);
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
@@ -291,7 +301,7 @@ const PhotoViewer = ({ photos, initialIndex, onClose, onPhotoDeleted }) => {
             <div className="flex items-center gap-4 pt-1">
               <button
                 onClick={handleToggleLike}
-                disabled={!user || !user.approved}
+                disabled={!user}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                   hasLiked
                     ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
@@ -353,7 +363,7 @@ const PhotoViewer = ({ photos, initialIndex, onClose, onPhotoDeleted }) => {
           </div>
 
           {/* Add Comment Input Form */}
-          {user && user.approved ? (
+          {user ? (
             <form onSubmit={handleAddComment} className="p-3 border-t border-white/5 bg-slate-900/80">
               <div className="flex gap-2">
                 <input
@@ -374,7 +384,7 @@ const PhotoViewer = ({ photos, initialIndex, onClose, onPhotoDeleted }) => {
             </form>
           ) : (
             <div className="p-3 border-t border-white/5 bg-slate-950/40 text-center text-xs text-slate-500">
-              {user ? "Awaiting approval to write comments." : "Sign in to write comments."}
+              "Sign in to write comments."
             </div>
           )}
         </div>

@@ -18,8 +18,8 @@ app.use(cors({
   origin: process.env.CLIENT_URL || "http://localhost:5173",
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Serve local static file uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -46,7 +46,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start listening
-app.listen(PORT, () => {
-  console.log(`Server is running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
-});
+// Start listening locally (skip in serverless Vercel production)
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => {
+    console.log(`Server is running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
+  });
+}
+
+module.exports = app;

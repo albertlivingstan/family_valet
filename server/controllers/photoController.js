@@ -1,71 +1,52 @@
 const Photo = require("../models/Photo");
 const Album = require("../models/Album");
-const { cloudinary, isCloudinaryConfigured } = require("../config/cloudinary");
-const fs = require("fs");
-const path = require("path");
 
-// Helper function to upload file to Cloudinary or fallback to local uploads folder URL
-const uploadSingleFile = async (file) => {
-  if (isCloudinaryConfigured) {
-    try {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "familyvault",
-        transformation: [{ width: 1200, crop: "limit", quality: "auto" }]
-      });
-      // Delete temporary local file
-      fs.unlinkSync(file.path);
-      return {
-        url: result.secure_url,
-        thumbnail: result.secure_url.replace("/upload/", "/upload/c_thumb,w_300,h_300,g_auto,q_auto/")
-      };
-    } catch (error) {
-      console.error("Cloudinary upload error, using local server storage instead:", error.message);
-    }
-  }
-
-  // Local storage fallback: return relative URL path
-  const filename = path.basename(file.path);
-  const relativePath = `/uploads/${filename}`;
-  return {
-    url: relativePath,
-    thumbnail: relativePath
-  };
-};
-
-// Upload multiple photos to an album
+// Upload multiple photos (expects JSON body with base64 data URLs)
 exports.uploadPhotos = async (req, res) => {
   try {
-    const { albumId, caption, location, dateTaken, privacy } = req.body;
+    const { albumId, caption, location, dateTaken, privacy, images } = req.body;
+    // `images` is an array of base64 data URL strings
 
-    if (!albumId) {
-      return res.status(400).json({ message: "Album ID is required" });
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({ message: "No photo files uploaded" });
     }
 
-    const album = await Album.findById(albumId);
+    let targetAlbumId = albumId;
+
+    // Instagram-style: if no albumId is provided, auto-create a default album for this user
+    if (!targetAlbumId) {
+      let defaultAlbum = await Album.findOne({
+        title: "Instagram Feed",
+        ownerId: req.user._id,
+      });
+
+      if (!defaultAlbum) {
+        defaultAlbum = new Album({
+          title: "Instagram Feed",
+          description: "All posts uploaded to my main feed",
+          coverImage: images[0],
+          ownerId: req.user._id,
+          privacy: "public", // Make it public by default so everyone can see!
+        });
+        await defaultAlbum.save();
+      }
+      targetAlbumId = defaultAlbum._id;
+    }
+
+    const album = await Album.findById(targetAlbumId);
     if (!album) {
       return res.status(404).json({ message: "Target album not found" });
     }
 
-    // Check upload authorization
-    if (album.ownerId.toString() !== req.user._id.toString() && req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized to upload to this album" });
-    }
-
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "No photo files uploaded" });
-    }
-
     const uploadedPhotos = [];
 
-    for (const file of req.files) {
-      const uploadResult = await uploadSingleFile(file);
-
+    for (const base64Image of images) {
       const photo = new Photo({
-        albumId,
+        albumId: targetAlbumId,
         ownerId: req.user._id,
-        imageURL: uploadResult.url,
-        thumbnail: uploadResult.thumbnail,
-        caption: caption || file.originalname.split(".")[0],
+        imageURL: base64Image,
+        thumbnail: base64Image,
+        caption: caption || "Feed Post",
         location: location || "",
         dateTaken: dateTaken ? new Date(dateTaken) : new Date(),
         privacy: privacy || album.privacy,
@@ -75,7 +56,7 @@ exports.uploadPhotos = async (req, res) => {
       uploadedPhotos.push(photo);
     }
 
-    // Update album cover image with the first uploaded photo if the album has no custom cover
+    // Set cover image of album if it was default unsplash image
     if (album.coverImage.includes("unsplash.com") && uploadedPhotos.length > 0) {
       album.coverImage = uploadedPhotos[0].imageURL;
       await album.save();
@@ -83,7 +64,7 @@ exports.uploadPhotos = async (req, res) => {
 
     res.status(201).json({
       message: `Successfully uploaded ${uploadedPhotos.length} photos`,
-      photos: uploadedPhotos
+      photos: uploadedPhotos,
     });
   } catch (error) {
     console.error("Upload Photos Error:", error);
@@ -106,13 +87,8 @@ exports.getPhotosByAlbum = async (req, res) => {
       if (!req.user || album.ownerId.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: "Access denied. Private album." });
       }
-    } else if (album.privacy === "family") {
-      if (!req.user) {
-        return res.status(401).json({ message: "Authentication required to view family photos." });
-      }
     }
 
-    // Query photo list (owners get private photos in this album, family gets family/public photos)
     let photoQuery = { albumId };
     if (!req.user) {
       photoQuery.privacy = "public";
@@ -131,7 +107,8 @@ exports.getPhotosByAlbum = async (req, res) => {
   }
 };
 
-// General photos feed with search & filters (Public + Family timeline + Private)
+// General photos feed (timeline and search)
+// Instagram feed style: returns all visible photos sorted by upload time
 exports.getPhotosFeed = async (req, res) => {
   try {
     const { search, location, date, albumId } = req.query;
@@ -139,12 +116,14 @@ exports.getPhotosFeed = async (req, res) => {
 
     // Privacy Filters
     if (req.user) {
+      // Logged in: show public, family, and own private photos
       query.$or = [
         { privacy: "public" },
         { privacy: "family" },
         { privacy: "private", ownerId: req.user._id }
       ];
     } else {
+      // Guest: can see all public photos (Instagram public style!)
       query.privacy = "public";
     }
 
@@ -180,15 +159,42 @@ exports.getPhotosFeed = async (req, res) => {
     const photos = await Photo.find(query)
       .populate("ownerId", "name profileImage")
       .populate("albumId", "title")
-      .sort({ dateTaken: -1 });
+      .sort({ uploadedAt: -1 }); // Instagram style: newest posts first!
 
-    res.status(200).json({ photos });
+    const Like = require("../models/Like");
+    const Comment = require("../models/Comment");
+
+    // Enhance photos with social metrics
+    const enhancedPhotos = await Promise.all(
+      photos.map(async (photo) => {
+        const likesCount = await Like.countDocuments({ photoId: photo._id });
+        const comments = await Comment.find({ photoId: photo._id })
+          .populate("userId", "name profileImage")
+          .sort({ createdAt: -1 })
+          .limit(3); // Last 3 comments for feed preview
+
+        let hasLiked = false;
+        if (req.user) {
+          const like = await Like.findOne({ photoId: photo._id, userId: req.user._id });
+          hasLiked = !!like;
+        }
+
+        return {
+          ...photo.toObject(),
+          likesCount,
+          hasLiked,
+          comments: comments.reverse(), // chronologically ordered comments
+        };
+      })
+    );
+
+    res.status(200).json({ photos: enhancedPhotos });
   } catch (error) {
     res.status(500).json({ message: "Error loading photo feed", error: error.message });
   }
 };
 
-// Update photo metadata (caption, location, dateTaken, privacy)
+// Update photo details
 exports.updatePhoto = async (req, res) => {
   try {
     const { caption, location, dateTaken, privacy } = req.body;
@@ -198,7 +204,7 @@ exports.updatePhoto = async (req, res) => {
       return res.status(404).json({ message: "Photo not found" });
     }
 
-    // Check permissions (owner or admin)
+    // Check permissions
     if (photo.ownerId.toString() !== req.user._id.toString() && req.user.role !== "admin") {
       return res.status(403).json({ message: "Unauthorized to edit this photo" });
     }
@@ -226,14 +232,6 @@ exports.deletePhoto = async (req, res) => {
     // Check permissions
     if (photo.ownerId.toString() !== req.user._id.toString() && req.user.role !== "admin") {
       return res.status(403).json({ message: "Unauthorized to delete this photo" });
-    }
-
-    // Delete local file if it's stored locally
-    if (photo.imageURL.startsWith("/uploads/")) {
-      const filePath = path.join(__dirname, "..", photo.imageURL);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
     }
 
     await Photo.findByIdAndDelete(photo._id);

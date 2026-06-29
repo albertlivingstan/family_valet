@@ -19,17 +19,7 @@ const RootLayout = ({ children }) => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <Navbar />
 
-      {/* Warning banner for authenticated but unapproved users */}
-      {user && !user.approved && (
-        <div className="w-full bg-amber-500/10 border-b border-amber-500/20 py-3 px-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-amber-400 text-sm font-medium">
-            <Clock className="w-4 h-4 animate-pulse" />
-            <span>
-              Your profile is awaiting approval from a family administrator. You currently only have access to public albums.
-            </span>
-          </div>
-        </div>
-      )}
+
 
       {/* Main page content container */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

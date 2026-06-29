@@ -8,7 +8,7 @@ const Upload = () => {
   const [searchParams] = useSearchParams();
   const queryAlbumId = searchParams.get("albumId");
 
-  // Albums dropdown
+  // Albums state
   const [albums, setAlbums] = useState([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState("");
   const [loadingAlbums, setLoadingAlbums] = useState(true);
@@ -18,7 +18,7 @@ const Upload = () => {
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState("");
   const [dateTaken, setDateTaken] = useState(new Date().toISOString().split("T")[0]);
-  const [privacy, setPrivacy] = useState("family");
+  const [privacy, setPrivacy] = useState("public"); // Default to public for Instagram style
 
   // Status
   const [error, setError] = useState("");
@@ -30,10 +30,9 @@ const Upload = () => {
       setLoadingAlbums(true);
       try {
         const response = await api.get("/albums");
-        // Get user's own albums (users can only upload to albums they created)
         setAlbums(response.data.albums);
         
-        // Auto-select query album or first available album
+        // Auto-select query album or first available
         if (queryAlbumId) {
           setSelectedAlbumId(queryAlbumId);
         } else if (response.data.albums.length > 0) {
@@ -49,7 +48,6 @@ const Upload = () => {
     fetchUserAlbums();
   }, [queryAlbumId]);
 
-  // Sync privacy default whenever the selected album changes
   useEffect(() => {
     if (selectedAlbumId && albums.length > 0) {
       const selected = albums.find((a) => a._id === selectedAlbumId);
@@ -86,44 +84,56 @@ const Upload = () => {
     setFiles(files.filter((_, i) => i !== index));
   };
 
+  // Helper to convert file to base64 string
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedAlbumId) {
-      return setError("Please select or create an album first");
-    }
     if (files.length === 0) {
       return setError("Please choose at least one photo to upload");
     }
 
     setError("");
     setUploading(true);
-    setProgress(10);
-
-    const formData = new FormData();
-    formData.append("albumId", selectedAlbumId);
-    formData.append("caption", caption);
-    formData.append("location", location);
-    formData.append("dateTaken", dateTaken);
-    formData.append("privacy", privacy);
-    
-    files.forEach((file) => {
-      formData.append("photos", file);
-    });
+    setProgress(15);
 
     try {
+      // Convert all files to base64 strings
       setProgress(40);
-      await api.post("/photos/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const base64Images = await Promise.all(
+        files.map((file) => convertToBase64(file))
+      );
+
+      setProgress(60);
+      const payload = {
+        caption,
+        location,
+        dateTaken,
+        privacy,
+        images: base64Images,
+      };
+
+      // If an album is selected, append it
+      if (selectedAlbumId) {
+        payload.albumId = selectedAlbumId;
+      }
+
+      await api.post("/photos/upload", payload);
       setProgress(100);
       
-      // Delay navigation slightly so they see 100% complete
       setTimeout(() => {
-        navigate(`/albums/${selectedAlbumId}`);
+        navigate("/");
       }, 500);
     } catch (err) {
       console.error("Upload error:", err);
-      setError(err.response?.data?.message || "Failed to upload photos. File size might be too large.");
+      setError(err.response?.data?.message || "Failed to upload photos. The image files may be too large.");
       setUploading(false);
     }
   };
@@ -137,7 +147,7 @@ const Upload = () => {
           <span>Upload Memories</span>
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Add photos to an existing album, set locations, and apply custom privacy options.
+          Post photos to your Instagram Feed or specific albums, set location tags, and write captions.
         </p>
       </div>
 
@@ -148,246 +158,233 @@ const Upload = () => {
         </div>
       )}
 
-      {loadingAlbums ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-        </div>
-      ) : albums.length === 0 ? (
-        <div className="glass-panel p-8 text-center rounded-2xl border-dashed border-white/10 space-y-3">
-          <Folder className="w-10 h-10 text-slate-500 mx-auto" />
-          <h4 className="text-base font-bold text-slate-300">No Albums Created Yet</h4>
-          <p className="text-xs text-slate-500">
-            You must create an album before uploading photos.
-          </p>
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl"
-          >
-            Create an Album
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={handleUploadSubmit} className="space-y-6">
-          
-          {/* Target Album Selection */}
-          <div className="glass-panel p-5 rounded-2xl space-y-3">
+      <form onSubmit={handleUploadSubmit} className="space-y-6">
+        
+        {/* Optional Album Selection */}
+        <div className="glass-panel p-5 rounded-2xl space-y-3">
+          <div className="flex justify-between items-center">
             <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
               <Folder className="w-4 h-4 text-indigo-400" />
-              <span>Select Destination Album</span>
+              <span>Target Album (Optional)</span>
             </h3>
+            <span className="text-[10px] text-slate-400">If none is selected, this post will publish directly to your feed</span>
+          </div>
+          {loadingAlbums ? (
+            <div className="text-xs text-slate-500">Loading albums...</div>
+          ) : (
             <select
               value={selectedAlbumId}
               onChange={(e) => setSelectedAlbumId(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-              required
+              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
             >
+              <option value="">Post directly to Main Feed (Instagram Style)</option>
               {albums.map((album) => (
                 <option key={album._id} value={album._id}>
                   {album.title} ({album.privacy})
                 </option>
               ))}
             </select>
-          </div>
+          )}
+        </div>
 
-          {/* Drag & Drop Zone */}
-          <div
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            className="glass-panel rounded-2xl border-2 border-dashed border-white/10 hover:border-indigo-500/40 p-8 text-center cursor-pointer transition-colors group relative"
-          >
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              disabled={uploading}
-            />
-            <div className="space-y-3 pointer-events-none">
-              <div className="inline-flex p-4 bg-indigo-600/10 rounded-full text-indigo-400 border border-indigo-500/10 group-hover:scale-105 transition-transform duration-200">
-                <UploadCloud className="w-8 h-8 text-glow" />
-              </div>
-              <h4 className="text-base font-bold text-slate-200">Drag & drop your photos here</h4>
-              <p className="text-xs text-slate-500">Supports multiple JPG, PNG, WebP or GIF images up to 10MB each</p>
+        {/* Drag & Drop Zone */}
+        <div
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          className="glass-panel rounded-2xl border-2 border-dashed border-white/10 hover:border-indigo-500/40 p-8 text-center cursor-pointer transition-colors group relative"
+        >
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            disabled={uploading}
+          />
+          <div className="space-y-3 pointer-events-none">
+            <div className="inline-flex p-4 bg-indigo-600/10 rounded-full text-indigo-400 border border-indigo-500/10 group-hover:scale-105 transition-transform duration-200">
+              <UploadCloud className="w-8 h-8 text-glow" />
+            </div>
+            <h4 className="text-base font-bold text-slate-200">Drag & drop your photos here</h4>
+            <p className="text-xs text-slate-500">Supports standard image files. Images are processed directly for database storage.</p>
+            <button
+              type="button"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl"
+            >
+              Select Files
+            </button>
+          </div>
+        </div>
+
+        {/* Files Preview list */}
+        {files.length > 0 && (
+          <div className="glass-panel p-5 rounded-2xl space-y-3">
+            <div className="flex justify-between items-center pb-2 border-b border-white/5">
+              <h4 className="text-xs font-bold text-slate-300">Files to Upload ({files.length})</h4>
               <button
                 type="button"
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl"
+                onClick={() => setFiles([])}
+                className="text-xs text-rose-400 hover:underline"
               >
-                Select Files
+                Clear all
               </button>
             </div>
+
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-48 overflow-y-auto p-1">
+              {files.map((file, idx) => (
+                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-slate-950 border border-white/10 group">
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt="preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeFile(idx)}
+                    className="absolute top-1 right-1 p-1 bg-black/60 rounded-md text-slate-400 hover:text-white hover:bg-rose-600 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
+        )}
 
-          {/* Files Preview list */}
-          {files.length > 0 && (
-            <div className="glass-panel p-5 rounded-2xl space-y-3">
-              <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                <h4 className="text-xs font-bold text-slate-300">Files to Upload ({files.length})</h4>
-                <button
-                  type="button"
-                  onClick={() => setFiles([])}
-                  className="text-xs text-rose-400 hover:underline"
-                >
-                  Clear all
-                </button>
-              </div>
-
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-48 overflow-y-auto p-1">
-                {files.map((file, idx) => (
-                  <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-slate-950 border border-white/10 group">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt="preview"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeFile(idx)}
-                      className="absolute top-1 right-1 p-1 bg-black/60 rounded-md text-slate-400 hover:text-white hover:bg-rose-600 transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Optional Meta Tags (Applies to all uploaded photos) */}
-          <div className="glass-panel p-5 rounded-2xl space-y-4">
-            <h3 className="text-sm font-bold text-slate-200">Add Metadata (Applies to all files)</h3>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Location</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Paris, France"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  disabled={uploading}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Date Taken</span>
-                </label>
-                <input
-                  type="date"
-                  value={dateTaken}
-                  onChange={(e) => setDateTaken(e.target.value)}
-                  disabled={uploading}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
+        {/* Meta Tags */}
+        <div className="glass-panel p-5 rounded-2xl space-y-4">
+          <h3 className="text-sm font-bold text-slate-200">Add Post Details</h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-400">Caption / Description</label>
+              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Location</span>
+              </label>
               <input
                 type="text"
-                placeholder="Family dinner, beach day..."
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Paris, France"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
                 disabled={uploading}
                 className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
               />
             </div>
 
-            {/* Privacy Override */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-400">Privacy Setting</label>
-              <div className="grid grid-cols-3 gap-3">
-                <label className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                  privacy === "private"
-                    ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
-                    : "bg-slate-950/50 border-white/5 text-slate-400 hover:bg-white/5"
-                }`}>
-                  <input
-                    type="radio"
-                    name="privacy"
-                    value="private"
-                    checked={privacy === "private"}
-                    onChange={() => setPrivacy("private")}
-                    className="sr-only"
-                  />
-                  <Lock className="w-4 h-4 mb-1" />
-                  <span className="text-[10px] font-semibold uppercase">Private</span>
-                </label>
-
-                <label className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                  privacy === "family"
-                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
-                    : "bg-slate-950/50 border-white/5 text-slate-400 hover:bg-white/5"
-                }`}>
-                  <input
-                    type="radio"
-                    name="privacy"
-                    value="family"
-                    checked={privacy === "family"}
-                    onChange={() => setPrivacy("family")}
-                    className="sr-only"
-                  />
-                  <Users className="w-4 h-4 mb-1" />
-                  <span className="text-[10px] font-semibold uppercase">Family</span>
-                </label>
-
-                <label className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                  privacy === "public"
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                    : "bg-slate-950/50 border-white/5 text-slate-400 hover:bg-white/5"
-                }`}>
-                  <input
-                    type="radio"
-                    name="privacy"
-                    value="public"
-                    checked={privacy === "public"}
-                    onChange={() => setPrivacy("public")}
-                    className="sr-only"
-                  />
-                  <Globe className="w-4 h-4 mb-1" />
-                  <span className="text-[10px] font-semibold uppercase">Public</span>
-                </label>
-              </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Date Taken</span>
+              </label>
+              <input
+                type="date"
+                value={dateTaken}
+                onChange={(e) => setDateTaken(e.target.value)}
+                disabled={uploading}
+                className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
             </div>
           </div>
 
-          {/* Progress loader */}
-          {uploading && (
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center text-xs text-slate-400">
-                <span>Uploading files...</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/5">
-                <div
-                  className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-            </div>
-          )}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-400">Caption / Description</label>
+            <input
+              type="text"
+              placeholder="Write a caption..."
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              disabled={uploading}
+              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={uploading || files.length === 0}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-semibold rounded-xl transition-all shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/20 flex items-center justify-center gap-2"
-          >
-            {uploading ? (
-              <span className="w-5 h-5 border-2 border-indigo-200 border-t-transparent rounded-full animate-spin"></span>
-            ) : (
-              <span>Upload {files.length} {files.length === 1 ? "Photo" : "Photos"}</span>
-            )}
-          </button>
-        </form>
-      )}
+          {/* Privacy */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-400">Post Privacy</label>
+            <div className="grid grid-cols-3 gap-3">
+              <label className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center cursor-pointer transition-all ${
+                privacy === "private"
+                  ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                  : "bg-slate-950/50 border-white/5 text-slate-400 hover:bg-white/5"
+              }`}>
+                <input
+                  type="radio"
+                  name="privacy"
+                  value="private"
+                  checked={privacy === "private"}
+                  onChange={() => setPrivacy("private")}
+                  className="sr-only"
+                />
+                <Lock className="w-4 h-4 mb-1" />
+                <span className="text-[10px] font-semibold uppercase">Private</span>
+              </label>
+
+              <label className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center cursor-pointer transition-all ${
+                privacy === "family"
+                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
+                  : "bg-slate-950/50 border-white/5 text-slate-400 hover:bg-white/5"
+              }`}>
+                <input
+                  type="radio"
+                  name="privacy"
+                  value="family"
+                  checked={privacy === "family"}
+                  onChange={() => setPrivacy("family")}
+                  className="sr-only"
+                />
+                <Users className="w-4 h-4 mb-1" />
+                <span className="text-[10px] font-semibold uppercase">Family Only</span>
+              </label>
+
+              <label className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center cursor-pointer transition-all ${
+                privacy === "public"
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                  : "bg-slate-950/50 border-white/5 text-slate-400 hover:bg-white/5"
+              }`}>
+                <input
+                  type="radio"
+                  name="privacy"
+                  value="public"
+                  checked={privacy === "public"}
+                  onChange={() => setPrivacy("public")}
+                  className="sr-only"
+                />
+                <Globe className="w-4 h-4 mb-1" />
+                <span className="text-[10px] font-semibold uppercase">Public</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Progress loader */}
+        {uploading && (
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center text-xs text-slate-400">
+              <span>Uploading posts...</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/5">
+              <div
+                className="bg-indigo-600 h-full rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={uploading || files.length === 0}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-semibold rounded-xl transition-all shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/20 flex items-center justify-center gap-2"
+        >
+          {uploading ? (
+            <span className="w-5 h-5 border-2 border-indigo-200 border-t-transparent rounded-full animate-spin"></span>
+          ) : (
+            <span>Share {files.length} {files.length === 1 ? "Post" : "Posts"}</span>
+          )}
+        </button>
+      </form>
     </div>
   );
 };

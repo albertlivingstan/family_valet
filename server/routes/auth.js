@@ -1,12 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/authController");
-const { requireFirebaseToken } = require("../middleware/auth");
 
-// Sync Firebase Authenticated user to MongoDB database
-router.post("/sync", requireFirebaseToken, authController.syncUser);
-
-// Local development auth bypass
-router.post("/bypass", authController.bypassAuth);
+// Authentication Routes
+router.post("/register", authController.register);
+router.post("/login", authController.login);
 
 module.exports = router;
