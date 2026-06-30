@@ -56,7 +56,7 @@ const Home = () => {
 
   useEffect(() => {
     fetchPhotos();
-  }, [user]);
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -64,7 +64,6 @@ const Home = () => {
   };
 
   const handleToggleLike = async (photoId) => {
-    if (!user) return navigate("/login");
     try {
       const response = await api.post(`/likes/photo/${photoId}`);
       setPhotos((prevPhotos) =>
@@ -81,8 +80,6 @@ const Home = () => {
 
   // Double Click / Double Tap to Like
   const handleImageDoubleTap = async (photoId, hasLiked) => {
-    if (!user) return navigate("/login");
-    
     // Show popup animation
     setPopHeartId(photoId);
     setTimeout(() => {
@@ -98,7 +95,6 @@ const Home = () => {
   const handleAddInlineComment = async (e, photoId) => {
     e.preventDefault();
     const commentText = commentInputs[photoId];
-    if (!user) return navigate("/login");
     if (!commentText || !commentText.trim()) return;
 
     try {
@@ -181,22 +177,13 @@ const Home = () => {
         <h1 className="text-3xl font-extrabold italic bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
           FamilyVault
         </h1>
-        {user ? (
-          <Link
-            to="/upload"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-semibold text-white transition-all shadow-md shadow-indigo-500/10"
-          >
-            <Camera className="w-4 h-4" />
-            <span>New Post</span>
-          </Link>
-        ) : (
-          <Link
-            to="/login"
-            className="px-3.5 py-1.5 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-xs font-semibold text-slate-200 transition-all"
-          >
-            Sign In
-          </Link>
-        )}
+        <Link
+          to="/upload"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-semibold text-white transition-all shadow-md shadow-indigo-500/10"
+        >
+          <Camera className="w-4 h-4" />
+          <span>New Post</span>
+        </Link>
       </div>
 
       {/* Search Header Bar */}
@@ -365,32 +352,26 @@ const Home = () => {
                     </div>
                   </div>
 
-                  {/* Inline quick comment field */}
-                  {user ? (
-                    <form
-                      onSubmit={(e) => handleAddInlineComment(e, photo._id)}
-                      className="flex gap-2 items-center pt-2"
+                  {/* Inline quick comment field — always visible */}
+                  <form
+                    onSubmit={(e) => handleAddInlineComment(e, photo._id)}
+                    className="flex gap-2 items-center pt-2"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Add a comment..."
+                      value={commentInputs[photo._id] || ""}
+                      onChange={(e) => handleInlineCommentChange(photo._id, e.target.value)}
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!(commentInputs[photo._id] || "").trim()}
+                      className="px-3 py-1.5 bg-indigo-600 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-semibold rounded-lg hover:bg-indigo-500 shadow transition-all"
                     >
-                      <input
-                        type="text"
-                        placeholder="Add a comment..."
-                        value={commentInputs[photo._id] || ""}
-                        onChange={(e) => handleInlineCommentChange(photo._id, e.target.value)}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!(commentInputs[photo._id] || "").trim()}
-                        className="px-3 py-1.5 bg-indigo-600 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-semibold rounded-lg hover:bg-indigo-500 shadow transition-all"
-                      >
-                        Post
-                      </button>
-                    </form>
-                  ) : (
-                    <div className="text-[10px] text-slate-500 text-center py-1">
-                      Sign in to comment or like posts.
-                    </div>
-                  )}
+                      Post
+                    </button>
+                  </form>
                 </div>
               </article>
             );

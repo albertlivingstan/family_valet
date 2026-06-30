@@ -6,31 +6,18 @@ import RootLayout from "./layouts/RootLayout";
 // Import pages
 import Home from "./pages/Home";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
 import AlbumDetails from "./pages/AlbumDetails";
 import Members from "./pages/Members";
 import Profile from "./pages/Profile";
 
-// Route guard for authenticated and approved users
-const ProtectedRoute = ({ children }) => {
+// Admin-only route guard
+const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  
   if (loading) return null;
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-};
-
-// Route guard for logged in users (approved or pending)
-const AuthRequiredRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  
-  if (loading) return null;
-  if (!user) {
-    return <Navigate to="/login" replace />;
+  if (!user || user.role !== "admin") {
+    return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -40,56 +27,18 @@ function AppContent() {
     <BrowserRouter>
       <RootLayout>
         <Routes>
-          {/* Guest / Public route */}
+          {/* ── Public routes (no login needed) ── */}
           <Route path="/" element={<Home />} />
+          <Route path="/upload" element={<Upload />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
 
-          {/* User Profile (available to pending and approved) */}
-          <Route
-            path="/profile"
-            element={
-              <AuthRequiredRoute>
-                <Profile />
-              </AuthRequiredRoute>
-            }
-          />
+          {/* ── Admin-only routes ── */}
+          <Route path="/profile"   element={<AdminRoute><Profile /></AdminRoute>} />
+          <Route path="/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
+          <Route path="/albums/:id" element={<AdminRoute><AlbumDetails /></AdminRoute>} />
+          <Route path="/members"   element={<AdminRoute><Members /></AdminRoute>} />
 
-          {/* Secure family routes (approved only) */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/upload"
-            element={
-              <ProtectedRoute>
-                <Upload />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/albums/:id"
-            element={
-              <ProtectedRoute>
-                <AlbumDetails />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/members"
-            element={
-              <ProtectedRoute>
-                <Members />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Catch-all redirect */}
+          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </RootLayout>

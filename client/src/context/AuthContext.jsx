@@ -11,7 +11,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Initialize auth state from local storage token
+  // Restore session from token on mount
   useEffect(() => {
     const initializeAuth = async () => {
       const token = localStorage.getItem("token");
@@ -19,25 +19,11 @@ export const AuthProvider = ({ children }) => {
         try {
           const response = await api.get("/users/me");
           setUser(response.data.user);
-          setLoading(false);
-          return;
         } catch (error) {
-          console.error("Session token validation failed:", error);
+          console.error("Session token invalid, clearing:", error);
           localStorage.removeItem("token");
           setUser(null);
         }
-      }
-      
-      // Auto-login with default family credentials if no active session
-      try {
-        const response = await api.post("/auth/login", {
-          name: "albertlivingstan73@gmail.com",
-          password: "Albert2005_29@"
-        });
-        localStorage.setItem("token", response.data.token);
-        setUser(response.data.user);
-      } catch (loginError) {
-        console.error("Auto-login on initialization failed:", loginError);
       }
       setLoading(false);
     };
@@ -45,6 +31,7 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
+  // Admin-only login
   const login = async (name, password) => {
     setLoading(true);
     try {
@@ -54,23 +41,7 @@ export const AuthProvider = ({ children }) => {
       return response.data.user;
     } catch (error) {
       console.error("Login failed:", error);
-      const msg = error.response?.data?.message || "Invalid username or password";
-      throw new Error(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (name, password, email) => {
-    setLoading(true);
-    try {
-      const response = await api.post("/auth/register", { name, password, email });
-      localStorage.setItem("token", response.data.token);
-      setUser(response.data.user);
-      return response.data.user;
-    } catch (error) {
-      console.error("Registration failed:", error);
-      const msg = error.response?.data?.message || "Username already taken";
+      const msg = error.response?.data?.message || "Invalid email or password";
       throw new Error(msg);
     } finally {
       setLoading(false);
@@ -87,7 +58,7 @@ export const AuthProvider = ({ children }) => {
       const response = await api.get("/users/me");
       setUser(response.data.user);
     } catch (error) {
-      console.error("Error refreshing user profile:", error);
+      console.error("Error refreshing user:", error);
     }
   };
 
@@ -95,9 +66,9 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     login,
-    register,
     logout,
     refreshUser,
+    isAdmin: user?.role === "admin",
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

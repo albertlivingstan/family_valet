@@ -7,8 +7,8 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   
-  const [name, setName] = useState("albertlivingstan73@gmail.com");
-  const [password, setPassword] = useState("Albert2005_29@");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,9 +46,9 @@ const Login = () => {
             <Camera className="w-7 h-7 text-glow text-indigo-400" />
           </div>
           <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-            FamilyVault
+            Admin Login
           </h2>
-          <p className="text-xs text-slate-400">Unlock your interactive family gallery</p>
+          <p className="text-xs text-slate-400">Access the FamilyVault admin panel</p>
         </div>
 
         {/* Error Alert */}
@@ -121,11 +121,9 @@ const Login = () => {
           </button>
         </form>
 
-        {/* Footer Navigation */}
-        <p className="text-center text-xs text-slate-400 pt-2">
-          New to the family vault?{" "}
-          <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-semibold underline transition-colors">
-            Register Account
+        <p className="text-center text-xs text-slate-500 pt-2">
+          <Link to="/" className="text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+            ← Back to Feed
           </Link>
         </p>
       </div>
