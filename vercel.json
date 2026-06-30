@@ -21,8 +21,16 @@
       "dest": "/client/assets/$1"
     },
     {
+      "src": "/favicon.svg",
+      "dest": "/client/favicon.svg"
+    },
+    {
+      "src": "/icons.svg",
+      "dest": "/client/icons.svg"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/client/$1"
+      "dest": "/client/index.html"
     }
   ]
 }

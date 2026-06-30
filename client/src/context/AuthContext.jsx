@@ -19,11 +19,25 @@ export const AuthProvider = ({ children }) => {
         try {
           const response = await api.get("/users/me");
           setUser(response.data.user);
+          setLoading(false);
+          return;
         } catch (error) {
           console.error("Session token validation failed:", error);
           localStorage.removeItem("token");
           setUser(null);
         }
+      }
+      
+      // Auto-login with default family credentials if no active session
+      try {
+        const response = await api.post("/auth/login", {
+          name: "albertlivingstan73@gmail.com",
+          password: "Albert2005_29@"
+        });
+        localStorage.setItem("token", response.data.token);
+        setUser(response.data.user);
+      } catch (loginError) {
+        console.error("Auto-login on initialization failed:", loginError);
       }
       setLoading(false);
     };

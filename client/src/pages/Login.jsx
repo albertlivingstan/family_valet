@@ -7,8 +7,8 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
+  const [name, setName] = useState("albertlivingstan73@gmail.com");
+  const [password, setPassword] = useState("Albert2005_29@");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

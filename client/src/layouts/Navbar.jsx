@@ -74,7 +74,7 @@ const Navbar = () => {
 
           {/* Actions / Auth (Desktop) */}
           <div className="hidden md:flex items-center gap-4">
-            {user ? (
+            {user && (
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <img
@@ -95,31 +95,6 @@ const Navbar = () => {
                     </span>
                   </div>
                 </div>
-                
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all duration-200"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/login"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white transition-all"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Log In</span>
-                </Link>
-                <Link
-                  to="/register"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition-all duration-200"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Sign Up</span>
-                </Link>
               </div>
             )}
           </div>
@@ -195,9 +170,9 @@ const Navbar = () => {
           )}
 
           <div className="pt-4 pb-2 border-t border-white/5">
-            {user ? (
+            {user && (
               <div className="px-3">
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3">
                   <img
                     src={user.profileImage}
                     alt={user.name}
@@ -208,35 +183,6 @@ const Navbar = () => {
                     <p className="text-xs text-slate-400">{user.email}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2 px-3">
-                <Link
-                  to="/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 border border-white/10"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Log In</span>
-                </Link>
-                <Link
-                  to="/register"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Sign Up</span>
-                </Link>
               </div>
             )}
           </div>

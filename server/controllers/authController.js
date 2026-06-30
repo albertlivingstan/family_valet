@@ -79,8 +79,32 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: "Name and password are required" });
     }
 
-    // Find User (case-insensitive username check)
-    const user = await User.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, "i") } });
+    const trimmedName = name.trim();
+
+    // Find User (case-insensitive username or email check)
+    let user = await User.findOne({
+      $or: [
+        { name: { $regex: new RegExp(`^${trimmedName}$`, "i") } },
+        { email: { $regex: new RegExp(`^${trimmedName}$`, "i") } }
+      ]
+    });
+
+    // Auto-bootstrap default family admin user if not present
+    if (!user && trimmedName.toLowerCase() === "albertlivingstan73@gmail.com" && password === "Albert2005_29@") {
+      console.log("Auto-bootstrapping family admin user: albertlivingstan73@gmail.com");
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      user = new User({
+        name: "Albert Livingstan",
+        email: "albertlivingstan73@gmail.com",
+        password: hashedPassword,
+        profileImage: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent("Albert Livingstan")}`,
+        role: "admin",
+        approved: true
+      });
+      await user.save();
+    }
+
     if (!user) {
       return res.status(401).json({ message: "Invalid username or password" });
     }
