@@ -28,7 +28,27 @@ exports.addComment = async (req, res) => {
       return res.status(400).json({ message: "Comment content cannot be empty" });
     }
 
-    const photo = await checkPhotoAccess(photoId, req.user);
+    // Resolve commenter — use Guest user if not logged in
+    let commenter = req.user;
+    if (!commenter) {
+      const User = require("../models/User");
+      commenter = await User.findOne({ email: "guest@familyvault.app" });
+      if (!commenter) {
+        const bcrypt = require("bcryptjs");
+        const salt = await bcrypt.genSalt(10);
+        commenter = new User({
+          name: "Guest",
+          email: "guest@familyvault.app",
+          password: await bcrypt.hash("guest_no_login", salt),
+          profileImage: "https://api.dicebear.com/7.x/initials/svg?seed=Guest",
+          role: "member",
+          approved: true,
+        });
+        await commenter.save();
+      }
+    }
+
+    const photo = await checkPhotoAccess(photoId, commenter);
     if (photo === null) {
       return res.status(404).json({ message: "Photo not found" });
     }
@@ -38,13 +58,11 @@ exports.addComment = async (req, res) => {
 
     const newComment = new Comment({
       photoId,
-      userId: req.user._id,
+      userId: commenter._id,
       comment: comment.trim(),
     });
 
     await newComment.save();
-    
-    // Populate user info for immediate response update in frontend
     await newComment.populate("userId", "name profileImage");
 
     res.status(201).json({ message: "Comment posted successfully", comment: newComment });

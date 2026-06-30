@@ -6,28 +6,50 @@ const { cloudinary, isCloudinaryConfigured } = require("../config/cloudinary");
 exports.uploadPhotos = async (req, res) => {
   try {
     const { albumId, caption, location, dateTaken, privacy, images } = req.body;
-    // `images` is an array of base64 data URL strings
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return res.status(400).json({ message: "No photo files uploaded" });
     }
 
+    const User = require("../models/User");
+
+    // ── Guest support: auto-create/find a shared "Guest" user ──
+    let uploader = req.user;
+    if (!uploader) {
+      uploader = await User.findOne({ email: "guest@familyvault.app" });
+      if (!uploader) {
+        const bcrypt = require("bcryptjs");
+        const salt = await bcrypt.genSalt(10);
+        uploader = new User({
+          name: "Guest",
+          email: "guest@familyvault.app",
+          password: await bcrypt.hash("guest_no_login", salt),
+          profileImage: "https://api.dicebear.com/7.x/initials/svg?seed=Guest",
+          role: "member",
+          approved: true,
+        });
+        await uploader.save();
+        console.log("Auto-created shared Guest user");
+      }
+    }
+
     let targetAlbumId = albumId;
 
-    // Instagram-style: if no albumId is provided, auto-create a default album for this user
+    // Instagram-style: if no albumId, auto-create a default "Feed" album for this uploader
     if (!targetAlbumId) {
+      const albumTitle = uploader.name === "Guest" ? "Guest Feed" : "Instagram Feed";
       let defaultAlbum = await Album.findOne({
-        title: "Instagram Feed",
-        ownerId: req.user._id,
+        title: albumTitle,
+        ownerId: uploader._id,
       });
 
       if (!defaultAlbum) {
         defaultAlbum = new Album({
-          title: "Instagram Feed",
-          description: "All posts uploaded to my main feed",
-          coverImage: images[0],
-          ownerId: req.user._id,
-          privacy: "public", // Make it public by default so everyone can see!
+          title: albumTitle,
+          description: "All posts uploaded to the main feed",
+          coverImage: images[0].startsWith("data:") ? "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1" : images[0],
+          ownerId: uploader._id,
+          privacy: "public",
         });
         await defaultAlbum.save();
       }
@@ -54,7 +76,6 @@ exports.uploadPhotos = async (req, res) => {
             resource_type: "auto",
           });
           finalImageUrl = uploadResponse.secure_url;
-          // Generate optimized thumbnail using Cloudinary transformation URL injection
           finalThumbnail = uploadResponse.secure_url.replace("/upload/", "/upload/c_thumb,w_300,h_300,g_face/");
           console.log("Cloudinary upload successful:", finalImageUrl);
         } catch (cloudinaryError) {
@@ -64,7 +85,7 @@ exports.uploadPhotos = async (req, res) => {
 
       const photo = new Photo({
         albumId: targetAlbumId,
-        ownerId: req.user._id,
+        ownerId: uploader._id,
         imageURL: finalImageUrl,
         thumbnail: finalThumbnail,
         caption: caption || "Feed Post",
@@ -77,8 +98,8 @@ exports.uploadPhotos = async (req, res) => {
       uploadedPhotos.push(photo);
     }
 
-    // Set cover image of album if it was default unsplash image
-    if (album.coverImage.includes("unsplash.com") && uploadedPhotos.length > 0) {
+    // Update album cover if it's still a placeholder
+    if ((album.coverImage.includes("unsplash.com") || album.coverImage.includes("data:")) && uploadedPhotos.length > 0) {
       album.coverImage = uploadedPhotos[0].imageURL;
       await album.save();
     }
@@ -92,6 +113,7 @@ exports.uploadPhotos = async (req, res) => {
     res.status(500).json({ message: "Error uploading photos", error: error.message });
   }
 };
+
 
 // Get photos from a specific album (respecting privacy levels)
 exports.getPhotosByAlbum = async (req, res) => {

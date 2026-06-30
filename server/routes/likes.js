@@ -4,7 +4,7 @@ const likeController = require("../controllers/likeController");
 const { requireAuth, optionalAuth } = require("../middleware/auth");
 
 // Likes routes
-router.post("/photo/:photoId", requireAuth, likeController.toggleLike);
+router.post("/photo/:photoId", optionalAuth, likeController.toggleLike);
 router.get("/photo/:photoId", optionalAuth, likeController.getLikesByPhoto);
 
 module.exports = router;
