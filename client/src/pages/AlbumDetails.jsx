@@ -120,7 +120,7 @@ const AlbumDetails = () => {
 
   const getFullImageUrl = (url) => {
     if (!url) return "";
-    if (url.startsWith("http")) return url;
+    if (url.startsWith("http") || url.startsWith("data:")) return url;
     return `${api.defaults.baseURL.replace("/api", "")}${url}`;
   };
 

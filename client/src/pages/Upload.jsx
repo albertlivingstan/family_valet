@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
-import { storage } from "../services/firebase";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { UploadCloud, Folder, MapPin, Calendar, Globe, Users, Lock, X, AlertCircle } from "lucide-react";
 
 const Upload = () => {
@@ -86,33 +84,13 @@ const Upload = () => {
     setFiles(files.filter((_, i) => i !== index));
   };
 
-  // Helper to upload a single file to Firebase Storage with progress tracking
-  const uploadToFirebase = (file, index, total) => {
+  // Helper to read file as base64 data URL
+  const readFileAsDataURL = (file) => {
     return new Promise((resolve, reject) => {
-      const storageRef = ref(storage, `photos/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const fileProgress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          // Calculate overall progress across multiple files
-          const overallProgress = Math.round(((index + fileProgress / 100) / total) * 100);
-          setProgress(overallProgress);
-        },
-        (error) => {
-          console.error("Firebase Storage Upload Error:", error);
-          reject(error);
-        },
-        async () => {
-          try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(downloadURL);
-          } catch (err) {
-            reject(err);
-          }
-        }
-      );
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(file);
     });
   };
 
@@ -127,12 +105,13 @@ const Upload = () => {
     setProgress(0);
 
     try {
-      const downloadURLs = [];
+      const base64Images = [];
       
-      // Upload each file sequentially to track progress accurately
+      // Convert files sequentially to track progress
       for (let i = 0; i < files.length; i++) {
-        const url = await uploadToFirebase(files[i], i, files.length);
-        downloadURLs.push(url);
+        const base64 = await readFileAsDataURL(files[i]);
+        base64Images.push(base64);
+        setProgress(Math.round(((i + 1) / files.length) * 100));
       }
 
       const payload = {
@@ -140,7 +119,7 @@ const Upload = () => {
         location,
         dateTaken,
         privacy,
-        images: downloadURLs, // Send the Firebase storage download URLs!
+        images: base64Images, // Send the base64 data URLs directly!
       };
 
       if (selectedAlbumId) {
@@ -155,7 +134,7 @@ const Upload = () => {
       }, 500);
     } catch (err) {
       console.error("Upload error:", err);
-      setError(err.message || "Failed to upload photos to Firebase Storage. Please check storage bucket configurations.");
+      setError(err.response?.data?.message || err.message || "Failed to upload photos to server.");
       setUploading(false);
     }
   };
@@ -382,7 +361,7 @@ const Upload = () => {
         {uploading && (
           <div className="space-y-1.5">
             <div className="flex justify-between items-center text-xs text-slate-400">
-              <span>Uploading to Firebase Storage...</span>
+              <span>Uploading to Family Vault...</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/5">

@@ -138,16 +138,21 @@ const Home = () => {
 
   const handleDownload = async (photo) => {
     try {
-      const response = await fetch(photo.imageURL);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      let url = photo.imageURL;
+      if (!photo.imageURL.startsWith("data:")) {
+        const response = await fetch(photo.imageURL);
+        const blob = await response.blob();
+        url = window.URL.createObjectURL(blob);
+      }
       const link = document.createElement("a");
       link.href = url;
       link.download = photo.caption || "familyvault-feed.jpg";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      if (!photo.imageURL.startsWith("data:")) {
+        window.URL.revokeObjectURL(url);
+      }
     } catch (err) {
       window.open(photo.imageURL, "_blank");
     }
