@@ -1,5 +1,6 @@
 const Photo = require("../models/Photo");
 const Album = require("../models/Album");
+const { cloudinary, isCloudinaryConfigured } = require("../config/cloudinary");
 
 // Upload multiple photos (expects JSON body with base64 data URLs)
 exports.uploadPhotos = async (req, res) => {
@@ -41,11 +42,31 @@ exports.uploadPhotos = async (req, res) => {
     const uploadedPhotos = [];
 
     for (const imageUrl of images) {
+      let finalImageUrl = imageUrl;
+      let finalThumbnail = imageUrl;
+
+      // If Cloudinary is configured, upload the base64 image
+      if (isCloudinaryConfigured && imageUrl.startsWith("data:")) {
+        try {
+          console.log("Uploading photo to Cloudinary...");
+          const uploadResponse = await cloudinary.uploader.upload(imageUrl, {
+            folder: "familyvault",
+            resource_type: "auto",
+          });
+          finalImageUrl = uploadResponse.secure_url;
+          // Generate optimized thumbnail using Cloudinary transformation URL injection
+          finalThumbnail = uploadResponse.secure_url.replace("/upload/", "/upload/c_thumb,w_300,h_300,g_face/");
+          console.log("Cloudinary upload successful:", finalImageUrl);
+        } catch (cloudinaryError) {
+          console.error("Cloudinary upload failed, falling back to raw base64:", cloudinaryError);
+        }
+      }
+
       const photo = new Photo({
         albumId: targetAlbumId,
         ownerId: req.user._id,
-        imageURL: imageUrl,
-        thumbnail: imageUrl,
+        imageURL: finalImageUrl,
+        thumbnail: finalThumbnail,
         caption: caption || "Feed Post",
         location: location || "",
         dateTaken: dateTaken ? new Date(dateTaken) : new Date(),
